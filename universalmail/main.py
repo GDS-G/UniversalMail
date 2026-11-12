@@ -10,12 +10,13 @@ from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, Field
 import secrets
 
-from . import imap_smtp, vault
+from . import imap_smtp, vault, native_providers
+from .provider_http import ProviderError
 from .mime import compose_message
 from .security import cipher, validate_mail_hostname
 
 
-app = FastAPI(title="Universal Mail & Calendar", version="0.2.0", description="Development-stage provider-neutral mail gateway.")
+app = FastAPI(title="Universal Mail & Calendar", version="0.3.0", description="Development-stage provider-neutral mail gateway.")
 
 
 def auth(x_api_key: str | None = Header(default=None)):
@@ -34,6 +35,26 @@ class CustomAccount(BaseModel):
     smtp_host: str
     smtp_port: int = 465
     smtp_security: Literal["ssl", "starttls"] = "ssl"
+
+
+class NativeAccount(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    kind: Literal["gmail", "outlook"]
+    refresh_token: str = Field(min_length=8)
+
+
+class NativeMove(BaseModel):
+    message_id: str
+    destination: str
+
+
+class SenderAllowlist(BaseModel):
+    sender: EmailStr
+
+
+class NativeRead(BaseModel):
+    read: bool
 
 
 class Attachment(BaseModel):
@@ -72,7 +93,7 @@ def startup():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "universalmail", "version": "0.2.0"}
+    return {"status": "ok", "service": "universalmail", "version": "0.3.0"}
 
 
 @app.get("/capabilities", dependencies=[Depends(auth)])
@@ -83,7 +104,11 @@ def capabilities():
         "attachments_send": True, "flags": True, "move": True,
         "sender_allowlist": False, "spam_report": False, "phishing_report": False,
         "calendar": False, "cross_provider_move": False
-    }, "outlook_graph": {"implemented": False}, "gmail_api": {"implemented": False}}
+    }, "outlook_graph": {"implemented": True, "mail_read": True, "mail_send": True, "move": True,
+        "sender_allowlist": False, "phishing_report": False, "calendar": False},
+        "gmail_api": {"implemented": True, "mail_read": True, "mail_send": True, "move": True,
+        "message_not_spam": True, "sender_allowlist": True, "phishing_report": False, "calendar": False},
+        "oauth_browser_login": False, "production_ready": False}
 
 
 @app.post("/accounts/custom", dependencies=[Depends(auth)], status_code=201)
@@ -99,6 +124,15 @@ def add_custom(payload: CustomAccount):
         raise HTTPException(400, str(exc))
 
 
+@app.post("/accounts/native", dependencies=[Depends(auth)], status_code=201)
+def add_native(payload: NativeAccount):
+    # Development-only onboarding. OAuth browser consent flow is not implemented.
+    account_id = vault.add_account(payload.name, str(payload.email), payload.kind,
+                                   {"refresh_token": payload.refresh_token})
+    return {"id": account_id, "kind": payload.kind, "connected": False,
+            "note": "Refresh token encrypted; live provider access not yet verified"}
+
+
 @app.get("/accounts", dependencies=[Depends(auth)])
 def accounts():
     return vault.list_accounts()
@@ -109,6 +143,26 @@ def delete_account(account_id: str):
     if not vault.delete_account(account_id):
         raise HTTPException(404, "Account not found")
     return {"deleted": True}
+
+
+def load_native(account_id: str) -> dict:
+    record = vault.get_account(account_id)
+    if record is None:
+        raise HTTPException(404, "Account not found")
+    if record["kind"] not in ("gmail", "outlook"):
+        raise HTTPException(400, "Not a native provider account")
+    return record
+
+
+def native_guarded(fn, *args):
+    try:
+        return fn(*args)
+    except ProviderError as exc:
+        raise HTTPException(exc.status, exc.detail)
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(400, str(exc))
+    except Exception:
+        raise HTTPException(502, "Native provider operation failed") from None
 
 
 def load_custom(account_id: str) -> dict:
@@ -218,3 +272,51 @@ def safe_senders(account_id: str):
 def phishing(account_id: str):
     load_custom(account_id)
     raise HTTPException(501, "Provider-specific phishing reporting not implemented; message was not reported")
+
+
+@app.get("/native/{account_id}/folders", dependencies=[Depends(auth)])
+def native_folders(account_id: str):
+    return native_guarded(native_providers.folders, load_native(account_id))
+
+
+@app.get("/native/{account_id}/messages", dependencies=[Depends(auth)])
+def native_messages(account_id: str, folder: str = "INBOX", limit: int = 30):
+    if not 1 <= limit <= 100:
+        raise HTTPException(400, "limit must be between 1 and 100")
+    return native_guarded(native_providers.messages, load_native(account_id), folder, limit)
+
+
+@app.get("/native/{account_id}/messages/{message_id}", dependencies=[Depends(auth)])
+def native_message(account_id: str, message_id: str):
+    return native_guarded(native_providers.message, load_native(account_id), message_id)
+
+
+@app.get("/native/{account_id}/messages/{message_id}/raw", dependencies=[Depends(auth)])
+def native_raw(account_id: str, message_id: str):
+    content = native_guarded(native_providers.raw, load_native(account_id), message_id)
+    return Response(content, media_type="message/rfc822")
+
+
+@app.post("/native/{account_id}/send", dependencies=[Depends(auth)])
+def native_send(account_id: str, payload: OutboundMessage):
+    return native_guarded(native_providers.send, load_native(account_id), payload)
+
+
+@app.patch("/native/{account_id}/messages/{message_id}/read", dependencies=[Depends(auth)])
+def native_read(account_id: str, message_id: str, payload: NativeRead):
+    return native_guarded(native_providers.set_read, load_native(account_id), message_id, payload.read)
+
+
+@app.post("/native/{account_id}/move", dependencies=[Depends(auth)])
+def native_move(account_id: str, payload: NativeMove):
+    return native_guarded(native_providers.move, load_native(account_id), payload.message_id, payload.destination)
+
+
+@app.post("/native/{account_id}/messages/{message_id}/not-spam", dependencies=[Depends(auth)])
+def native_not_spam(account_id: str, message_id: str):
+    return native_guarded(native_providers.mark_not_spam, load_native(account_id), message_id)
+
+
+@app.post("/native/{account_id}/safe-senders", dependencies=[Depends(auth)])
+def native_safe_senders(account_id: str, payload: SenderAllowlist):
+    return native_guarded(native_providers.allowlist_sender, load_native(account_id), str(payload.sender))

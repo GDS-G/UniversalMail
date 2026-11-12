@@ -56,7 +56,7 @@ def send(account, payload):
         payload.html, [str(x) for x in payload.cc], [str(x) for x in payload.bcc],
         [x.model_dump() for x in payload.attachments], payload.in_reply_to, payload.references)
     if account["kind"] == "outlook":
-        authorized(account, "POST", GRAPH + "/sendMail", data=raw_bytes,
+        authorized(account, "POST", GRAPH + "/sendMail", data=base64.b64encode(raw_bytes),
                    headers={"Content-Type": "text/plain"})
         return {"accepted_by_provider": True, "delivered": "unverified"}
     result = authorized(account, "POST", GMAIL + "/messages/send",

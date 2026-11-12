@@ -2,7 +2,7 @@
 
 Self-hosted, provider-adapter email and calendar gateway for ChatGPT integrations.
 
-**Status: foundation / development.** This release implements a secure API skeleton and a functional custom IMAP/SMTP path for common mailbox operations. Microsoft Graph, Gmail, CalDAV, sender safe-listing, spam/phishing reporting, calendar scheduling, raw MIME migration and MCP exposure are **not yet implemented**. The API must not claim those operations succeeded.
+**Status: foundation / development.** This release implements a secure API skeleton and a functional custom IMAP/SMTP path for common mailbox operations. Initial Microsoft Graph and Gmail mail adapters are now implemented but **untested against live accounts**. Browser OAuth onboarding, CalDAV, Outlook sender safe-listing, phishing reporting, calendar scheduling, cross-account migration and MCP exposure are **not yet implemented**. The API must not claim those operations succeeded.
 
 ## Current features
 - Account configurations encrypted at rest using Fernet; custom IMAP/SMTP servers with explicit ports and TLS.
@@ -43,7 +43,7 @@ Server connections are permitted only to public DNS addresses by default, to red
 ## Provider limitations
 - IMAP folders/flags are server capabilities, not universal spam/phishing-report APIs.
 - POP3 cannot provide full folder semantics. It is a future restricted adapter.
-- Outlook uses Microsoft Graph; Gmail uses Gmail API for provider-specific spam, safe sender, and calendar behaviors. Those integrations require OAuth registration and further implementation.
+- Initial Outlook Microsoft Graph and Gmail API adapters support mailbox browsing, message reads, sending, and moving. Gmail also has message not-spam and persistent neverSpam filter operations. These require OAuth client registration and a valid refresh token; browser-based OAuth login is not implemented. Outlook sender allowlisting and calendar APIs are not implemented.
 - HTML formatting is transmitted in standards-compliant MIME. Recipient clients may render it differently.
 - This project is currently **not connected** to the installed ChatGPT plugin. Adding an authenticated MCP endpoint and changing the plugin configuration is a separate integration step.
 
@@ -52,3 +52,5 @@ Server connections are permitted only to public DNS addresses by default, to red
 
 ## Roadmap
 See [docs/ROADMAP.md](docs/ROADMAP.md).
+## Native provider development
+See [docs/OAUTH.md](docs/OAUTH.md). Provider adapters are unverified until real account OAuth, integration tests, and token lifecycle handling are complete. Never paste access or refresh tokens into ChatGPT.

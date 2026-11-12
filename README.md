@@ -1,56 +1,63 @@
 # Universal Mail & Calendar
 
-Self-hosted, provider-adapter email and calendar gateway for ChatGPT integrations.
+**Backend 0.4.0 — development, single-owner deployment. Not yet a live ChatGPT mail service.**
 
-**Status: foundation / development.** This release implements a secure API skeleton and a functional custom IMAP/SMTP path for common mailbox operations. Initial Microsoft Graph and Gmail mail adapters are now implemented but **untested against live accounts**. Browser OAuth onboarding, CalDAV, Outlook sender safe-listing, phishing reporting, calendar scheduling, cross-account migration and MCP exposure are **not yet implemented**. The API must not claim those operations succeeded.
+Self-hosted FastAPI gateway with Gmail/Microsoft Graph adapters and a custom IMAP/SMTP path. No Replit dependency. The installed ChatGPT skill/plugin remains separate and has not been connected to this server.
 
-## Current features
-- Account configurations encrypted at rest using Fernet; custom IMAP/SMTP servers with explicit ports and TLS.
-- List folders/messages, read message, download attachments, send multipart plain-text/HTML messages with multiple attachments, set seen/flagged, move messages, and fetch raw RFC822 bytes.
-- Explicit provider capability reporting. Not-junk sender allowlisting is **unsupported** on generic IMAP; moving messages does not imply retraining spam filters or sender allowlisting.
-- API-key authentication and Docker deployment scaffold. Intended to run behind TLS and a reverse proxy.
+## This milestone
 
-## Run locally
-1. Install Python 3.12 or newer.
-2. `pip install -r requirements.txt`
-3. Generate a fresh key: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-4. Set `UNIVERSALMAIL_MASTER_KEY` to that value and `UNIVERSALMAIL_API_KEY` to a long random value in your environment. Never commit either value.
-5. Run `uvicorn universalmail.main:app --host 127.0.0.1 --port 8000`.
-6. Visit `http://127.0.0.1:8000/docs`; authenticate using the `X-API-Key` header.
+- Browser account connection at `/connect`, with provider-hosted consent, authorization code + S256 PKCE, expiring one-time browser-bound state, and server-verified mailbox identity.
+- Encrypted access/refresh token storage, access-token caching, serialized refresh-token rotation, and account reconnection without duplicate identities.
+- Gmail persistent never-mark-as-spam filters using `action.removeLabelIds=["SPAM"]`, with read-back verification and reuse of matching filters. Message not-spam remains a separate action. Outlook Safe Senders is explicitly not implemented.
+- Native mailbox pagination and Outlook child-folder browsing; Gmail Junk/Trash enumeration enabled.
+- HTML/multipart MIME, attachments and Bcc handling for native APIs; SMTP keeps Bcc only in its separate envelope. Receiving clients still control rendering.
+- IMAP moves no longer use mailbox-wide EXPUNGE. They require MOVE or UIDPLUS and report partial failures. SMTP responses distinguish accepted and refused recipients.
+- 68 local automated tests, using mocked provider responses; CI configured for Python 3.12 and 3.13. Live mailbox operations and real OAuth consent have not been tested.
 
-The backend stores encrypted provider credentials in SQLite at `UNIVERSALMAIL_DB_PATH` (default `./data/accounts.db`). Protect and back up the database and master key separately. No credentials belong in chat or GitHub.
+## Local setup
 
-### Example custom account
-POST `/accounts/custom` with:
-```json
-{
-  "name": "My mailbox",
-  "email": "me@example.com",
-  "username": "me@example.com",
-  "password": "app-specific-password",
-  "imap_host": "imap.example.com",
-  "imap_port": 993,
-  "smtp_host": "smtp.example.com",
-  "smtp_port": 465,
-  "smtp_security": "ssl"
-}
+1. Install Python 3.12 or 3.13 and run `python -m pip install -r requirements.txt`.
+2. Copy `.env.example` to `.env` and generate a master key and an independent API key:
+
+```sh
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
-Server connections are permitted only to public DNS addresses by default, to reduce server-side request forgery risks. Set `UNIVERSALMAIL_ALLOW_PRIVATE_MAIL_HOSTS=true` only in a controlled private network.
 
-### Deployment
-`docker compose up --build` with environment variables configured. Do not expose the API directly on the Internet without HTTPS, authentication, rate limits, network isolation, and a secrets-management plan. The docker compose file binds to localhost by default.
+3. Store the generated values in `.env`; do not commit that file. Enter provider app credentials there, following [OAuth setup](docs/OAUTH.md).
+4. Run:
 
-## Provider limitations
-- IMAP folders/flags are server capabilities, not universal spam/phishing-report APIs.
-- POP3 cannot provide full folder semantics. It is a future restricted adapter.
-- Initial Outlook Microsoft Graph and Gmail API adapters support mailbox browsing, message reads, sending, and moving. Gmail also has message not-spam and persistent neverSpam filter operations. These require OAuth client registration and a valid refresh token; browser-based OAuth login is not implemented. Outlook sender allowlisting and calendar APIs are not implemented.
-- HTML formatting is transmitted in standards-compliant MIME. Recipient clients may render it differently.
-- This project is currently **not connected** to the installed ChatGPT plugin. Adding an authenticated MCP endpoint and changing the plugin configuration is a separate integration step.
+```sh
+python -m uvicorn universalmail.main:app --host 127.0.0.1 --port 8000 --env-file .env --no-access-log
+```
 
-## Test
-`pytest -q`
+5. Open `http://localhost:8000/connect`. Enter the **server API key**, not an email password. Check configuration, then choose a provider. The key is sent only to this server in an HTTP header and is not put in browser storage or a URL.
+6. Inspect the authenticated API at `/docs`, using the `X-API-Key` header. `/health` reports server health, not provider connectivity.
 
-## Roadmap
-See [docs/ROADMAP.md](docs/ROADMAP.md).
-## Native provider development
-See [docs/OAUTH.md](docs/OAUTH.md). Provider adapters are unverified until real account OAuth, integration tests, and token lifecycle handling are complete. Never paste access or refresh tokens into ChatGPT.
+For Docker, populate `.env`, then `docker compose up --build`. The service binds to localhost. The container runs as UID 10001; an existing data volume must be writable by that UID. Back up existing data before changing ownership or upgrading.
+
+For remote use, configure a fixed HTTPS origin and disable insecure localhost mode. Suppress OAuth query strings in proxy logs. No hosting account, OAuth app registration, paid subscription, or deployment is created by this repository.
+
+## API and compatibility notes
+
+`POST /accounts/native` now returns **410**: manual refresh-token registration was removed. Use `/connect` and the authenticated `/oauth/{gmail|outlook}/start` flow. Existing encrypted accounts are retained; reconnect when requested. `/oauth/status` reports configuration without returning secrets.
+
+Native folder/message listings now return `{ "items": [...], "next_page_token": ... }`. Pass the cursor back to the same resource until it is null. Outlook root folders are not the complete hierarchy: query each folder with children using `parent=<folder id>`. IMAP listings currently return the most recent bounded set, not a complete paginated inventory.
+
+A sender filter does not change existing messages and does not mean a provider block list was inspected. Removing an account deletes local credentials; it does not revoke the provider's original consent. A successful send response means provider acceptance, not recipient delivery.
+
+## What remains
+
+Calendar CRUD/free-busy/RSVP, Outlook Safe Senders, actual spam/phishing reporting, cross-account MIME import/verified migration, an authenticated remote MCP integration, and autonomous processing are **not implemented**. Do not substitute folder moves for sender allowlisting or reporting.
+
+Custom-mail work still includes explicit IMAP security selection on arbitrary ports, separate SMTP credentials, OAuth-enabled IMAP, POP3, Unicode folder handling, UIDVALIDITY tracking, complete pagination, and Sent-folder copy policy. Large native-provider attachment upload sessions, inline-image composition, and provider-specific reply/thread behavior also need completion.
+
+Production work still includes request-size/rate limits, audit records, a deployment egress policy and stronger DNS-rebinding protection, dependency locking/scanning, live tests, and review of token revocation/rotation recovery. Hostname DNS checks alone are not a complete SSRF defense. This is a single-owner API-key service, not a multi-user authorization system. Email addresses/display names are metadata; tokens and passwords are encrypted. Protect the database and back up its master key separately.
+
+## Tests
+
+```sh
+python -m pytest -q
+```
+
+See [test scope](docs/TESTING.md) and the [roadmap](docs/ROADMAP.md). No test sends mail, modifies a real inbox, or connects an actual provider account.

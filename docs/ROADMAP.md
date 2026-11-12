@@ -1,30 +1,20 @@
 # Implementation roadmap
 
-## Phase 1 (committed foundation)
-- Encrypted per-account custom IMAP/SMTP config and mailbox operations.
-- Multipart HTML composition and multiple attachments.
-- Explicit capability flags; no false success when a provider operation is unsupported.
+## Backend 0.4.0 — implemented and locally mock-tested
 
-## Phase 2
-- OAuth authorization-code + PKCE for Microsoft Graph and Gmail, refresh-token management and tenant validation.
-- Native Outlook/Gmail folder search, send, reply, raw-message import/export, labels, categories, safe senders and spam classification.
-- Secure attachment streaming with size and content-type controls; avoid storing plaintext files long-term.
-- Server-side rules and provider-specific true phishing reporting only where supported.
+Browser Google/Microsoft authorization, S256 PKCE, owner authentication, one-use browser-bound callbacks, encrypted token persistence/refresh, and verified provider identities. Native mail listing/read/send/move, cursor pagination and Outlook child folders. Correct Gmail sender-filter action with read-back verification. Custom IMAP/SMTP foundation, safer moves, MIME/Bcc handling, and explicit partial SMTP acceptance.
 
-## Phase 3
-- CalDAV plus Graph/Google calendar operations, free/busy scheduling, invites, RSVPs.
-- MIME-preserving cross-provider copy with Message-ID, Date, body/attachment integrity checks; delete source only after destination verification.
-- Durable background jobs and idempotency for migration and automation.
+## Next implementation work
 
-## Phase 4
-- Authenticated remote MCP server with least-privilege tool surface.
-- ChatGPT plugin update to point at the deployed MCP endpoint.
-- Audit trails, role-based access, consent-based automation policies, UI, continuous integration and end-to-end tests.
+1. Calendar provider adapters: calendars, events, invitations, free/busy, RSVP, time zones and conflict checks. Request additional scopes only when used.
+2. Outlook Safe Senders using a supported, verified mailbox configuration mechanism; distinguish personal Outlook from organizational accounts. No fallback that falsely claims sender trust.
+3. Provider-specific spam/phishing reporting, blocked-sender management and authorized reconciliation of conflicting filters.
+4. Attachments/inline images, native replies/threading, complete custom-server configuration, complete IMAP inventory, UIDVALIDITY and localized folders.
+5. Raw MIME cross-account import/copy with durable jobs, deduplication, body/header/attachment verification and source removal only after verified import.
+6. Remote MCP authentication and tool surface, deployed HTTPS service, installed plugin binding, approval policies and authorized autonomous workflows.
 
-## Security and verification priorities
-- No secrets in Git or chat; require TLS, token encryption and rotation.
-- DNS rebinding/SSRF defense for custom server targets; egress policy at deployment.
-- Bound data volumes, request sizes and rate limits, including attachment total size.
-- Never infer safe-sender trust from Inbox moves.
-- Do not claim `sent` means delivered to the recipient.
-- No production readiness until OAuth, encrypted secrets, host restrictions and end-to-end tests have passed.
+## Release gates
+
+Register real OAuth applications and test Gmail, Outlook personal, Microsoft 365 and a custom IMAP/SMTP account. Verify mailbox-visible changes, formatting, Bcc privacy, attachment integrity, pagination, actual sender-filter persistence, revoked consent and token expiry. CI mock tests do not substitute for these checks.
+
+Before public deployment, implement request/rate bounds, audit events, egress restrictions including DNS-rebinding defense, dependency locking/security scanning, backup/recovery and OAuth revocation. No credentials in Git, chat, logs or screenshots. Choose hosting separately; no Replit subscription is required by the code.

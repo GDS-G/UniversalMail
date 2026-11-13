@@ -1,10 +1,32 @@
 # Universal Mail & Calendar
 
-**Backend 0.4.0 — development, single-owner deployment. Not yet a live ChatGPT mail service.**
+**Backend 0.5.0 — development, single-owner deployment. Not yet a live ChatGPT mail service.**
 
 Self-hosted FastAPI gateway with Gmail/Microsoft Graph adapters and a custom IMAP/SMTP path. No Replit dependency. The installed ChatGPT skill/plugin remains separate and has not been connected to this server.
 
-## This milestone
+## Start here — local computer or your server
+
+For Windows, install/start Docker Desktop in Linux-container mode, extract this
+repository and run from its folder:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Start-UniversalMail.ps1 -CopyKey
+```
+
+The launcher checks compatibility, builds the app, generates keys without overwriting
+existing ones, starts the local service, verifies health and opens `/setup`. No host
+Python installation is needed. This command must run on **your PC**, not in ChatGPT's
+sandbox. No mailbox is connected until you complete provider consent.
+
+[Local setup](docs/LOCAL_SETUP.md) · [Server setup](docs/SERVER_SETUP.md)
+
+The `/setup` page offers both deployment paths, exact callback URIs, one-time app
+registration guidance, encrypted provider app-credential storage and mailbox sign-in.
+The Linux server launcher configures Docker volumes and a Caddy HTTPS proxy on an
+existing compatible host; it does not buy a server or change DNS/firewalls. Remote
+SSH provisioning and automatic local-to-server data migration are not implemented.
+
+## Earlier mail/OAuth milestone
 
 - Browser account connection at `/connect`, with provider-hosted consent, authorization code + S256 PKCE, expiring one-time browser-bound state, and server-verified mailbox identity.
 - Encrypted access/refresh token storage, access-token caching, serialized refresh-token rotation, and account reconnection without duplicate identities.
@@ -12,7 +34,7 @@ Self-hosted FastAPI gateway with Gmail/Microsoft Graph adapters and a custom IMA
 - Native mailbox pagination and Outlook child-folder browsing; Gmail Junk/Trash enumeration enabled.
 - HTML/multipart MIME, attachments and Bcc handling for native APIs; SMTP keeps Bcc only in its separate envelope. Receiving clients still control rendering.
 - IMAP moves no longer use mailbox-wide EXPUNGE. They require MOVE or UIDPLUS and report partial failures. SMTP responses distinguish accepted and refused recipients.
-- 68 local automated tests, using mocked provider responses; CI configured for Python 3.12 and 3.13. Live mailbox operations and real OAuth consent have not been tested.
+- 103 automated tests after the setup milestone, using mocked provider responses. CI adds Windows PowerShell checks and a real Linux Docker startup test. Live mailbox operations and real OAuth consent have not been tested.
 
 ## Local setup
 

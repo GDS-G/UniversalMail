@@ -1,0 +1,8 @@
+# No access log: OAuth callback query strings contain authorization codes.
+{$UNIVERSALMAIL_TLS_DOMAIN} {
+    encode zstd gzip
+    request_body {
+        max_size 32MB
+    }
+    reverse_proxy universalmail:8000
+}

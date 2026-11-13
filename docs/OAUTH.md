@@ -1,4 +1,4 @@
-# Browser OAuth setup (backend 0.4.0)
+# Browser OAuth setup (backend 0.5.0)
 
 The owner connects accounts on `/connect`. Provider passwords are entered only on Microsoft/Google pages. Authorization codes are exchanged by the backend; tokens are encrypted in SQLite. Do not paste client secrets, account passwords, or tokens into ChatGPT, issues, commits, or URLs.
 
@@ -49,3 +49,31 @@ Disable access logging of OAuth query strings in both the app server and reverse
 - [Microsoft Graph sendMail MIME contract](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0)
 
 The protocol paths are implemented and mock-tested, not yet verified by signing into real accounts. This does not connect the server to the installed ChatGPT plugin; hosting and authenticated MCP integration remain separate work.
+
+## Guided setup in backend 0.5.0
+
+The launcher generates the backend keys before any provider credentials are needed.
+Open `/setup`, unlock with the generated administration key, and follow the Google
+and Microsoft panels. Enter app client credentials into that local/private page;
+they are encrypted in `oauth-client-gmail.enc` or `oauth-client-outlook.enc` alongside
+the account database. Saved encrypted app settings override environment fallbacks.
+No restart is required. The setting save operation is not a claim that credentials
+are valid; provider consent and callback identity verification establish that later.
+
+Default local Web application redirect URIs:
+
+```
+http://localhost:8000/oauth/gmail/callback
+http://localhost:8000/oauth/outlook/callback
+```
+
+Choose the Web platform for these registrations. They belong to a server-side app
+running locally, not to an SPA, browser extension or Microsoft public-client app.
+With a different port or hosted deployment use the **exact** URIs shown by `/setup`.
+Microsoft registration requires access to an Entra tenant even when connecting a
+personal Outlook.com account. Do not add calendar permissions yet: the current
+backend does not implement calendar operations.
+
+Registration references:
+- https://developers.google.com/identity/protocols/oauth2/web-server
+- https://learn.microsoft.com/en-us/graph/auth-register-app-v2

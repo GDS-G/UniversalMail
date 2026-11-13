@@ -1,0 +1,51 @@
+services:
+  universalmail:
+    build: .
+    image: universalmail:0.5.0
+    environment:
+      UNIVERSALMAIL_MASTER_KEY: ${UNIVERSALMAIL_MASTER_KEY:?Set a Fernet master key}
+      UNIVERSALMAIL_API_KEY: ${UNIVERSALMAIL_API_KEY:?Set a strong API key}
+      UNIVERSALMAIL_DEPLOYMENT_MODE: server
+      UNIVERSALMAIL_DB_PATH: /app/data/accounts.db
+      UNIVERSALMAIL_PUBLIC_URL: ${UNIVERSALMAIL_PUBLIC_URL:?Set the public origin}
+      UNIVERSALMAIL_ALLOW_INSECURE_LOCALHOST: ${UNIVERSALMAIL_ALLOW_INSECURE_LOCALHOST:-false}
+      UNIVERSALMAIL_ALLOW_PRIVATE_MAIL_HOSTS: ${UNIVERSALMAIL_ALLOW_PRIVATE_MAIL_HOSTS:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+      MICROSOFT_TENANT: ${MICROSOFT_TENANT:-common}
+    volumes:
+      - universalmail_data:/app/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+  proxy:
+    image: caddy:2-alpine
+    environment:
+      UNIVERSALMAIL_TLS_DOMAIN: ${UNIVERSALMAIL_TLS_DOMAIN:?Set the public DNS hostname}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      universalmail:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+volumes:
+  universalmail_data:
+  caddy_data:
+  caddy_config:

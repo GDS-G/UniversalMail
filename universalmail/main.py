@@ -17,6 +17,8 @@ from .mime import compose_message
 from .provider_http import ProviderError
 from .security import cipher, validate_mail_hostname
 from .onboarding import router as onboarding_router
+from .setup_routes import router as setup_router
+from .setup_page import router as setup_page_router
 
 
 @asynccontextmanager
@@ -28,10 +30,12 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Universal Mail & Calendar", version="0.4.0", lifespan=lifespan,
+app = FastAPI(title="Universal Mail & Calendar", version="0.5.0", lifespan=lifespan,
               description="Development-stage single-owner gateway; not production certified.")
 app.include_router(oauth.router)
 app.include_router(onboarding_router)
+app.include_router(setup_router)
+app.include_router(setup_page_router)
 Uid = Annotated[int, Path(gt=0)]
 
 

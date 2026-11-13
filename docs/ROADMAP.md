@@ -18,3 +18,9 @@ Browser Google/Microsoft authorization, S256 PKCE, owner authentication, one-use
 Register real OAuth applications and test Gmail, Outlook personal, Microsoft 365 and a custom IMAP/SMTP account. Verify mailbox-visible changes, formatting, Bcc privacy, attachment integrity, pagination, actual sender-filter persistence, revoked consent and token expiry. CI mock tests do not substitute for these checks.
 
 Before public deployment, implement request/rate bounds, audit events, egress restrictions including DNS-rebinding defense, dependency locking/security scanning, backup/recovery and OAuth revocation. No credentials in Git, chat, logs or screenshots. Choose hosting separately; no Replit subscription is required by the code.
+
+## Setup milestone delivered in 0.5.0
+Local launchers, generated keys, authenticated setup UI, encrypted app configuration,
+and compatible-host Linux Docker/Caddy launcher. Still required: local authenticated
+MCP bridge, remote authenticated MCP endpoint, cloud-provider provisioning adapters,
+explicit server-access delegation and automatic migration/rollback with verified backups.

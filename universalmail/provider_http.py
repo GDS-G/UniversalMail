@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from . import vault
+from . import vault, client_config
 
 
 class ProviderError(Exception):
@@ -24,18 +24,21 @@ GRAPH_SCOPES = ("https://graph.microsoft.com/User.Read",
 
 
 def settings(kind: str) -> dict:
+    if kind not in ("gmail", "outlook"):
+        raise ProviderError(400, "Unsupported OAuth provider")
+    credentials = client_config.values(kind)
     if kind == "gmail":
-        result = dict(client_id=os.getenv("GOOGLE_CLIENT_ID"),
-                      client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+        result = dict(client_id=credentials.get("client_id"),
+                      client_secret=credentials.get("client_secret"),
                       authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
                       token_url="https://oauth2.googleapis.com/token", scopes=GMAIL_SCOPES)
     elif kind == "outlook":
-        tenant = os.getenv("MICROSOFT_TENANT", "common")
+        tenant = credentials.get("tenant", "common")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]{0,252}", tenant):
             raise ProviderError(503, "Invalid Microsoft tenant configuration")
         base = f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0"
-        result = dict(client_id=os.getenv("MICROSOFT_CLIENT_ID"),
-                      client_secret=os.getenv("MICROSOFT_CLIENT_SECRET"),
+        result = dict(client_id=credentials.get("client_id"),
+                      client_secret=credentials.get("client_secret"),
                       authorize_url=base + "/authorize", token_url=base + "/token",
                       scopes=(*GRAPH_SCOPES, "offline_access"))
     else:

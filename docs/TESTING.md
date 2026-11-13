@@ -1,9 +1,23 @@
-# Test scope — backend 0.4.0
+# Test scope — backend 0.5.0
 
-Local result: **68 passed**, Python **3.13.5**, using `python -m pytest -q`. Source compilation also passed. The CI workflow is configured for Python 3.12 and 3.13; a configured workflow is not itself evidence of a completed CI run.
+Local result: **103 passed**, using `python -m pytest -q`. This includes 68 earlier
+mail/OAuth regression tests and 35 setup/deployment tests. Python source and setup
+JavaScript syntax checks pass. Provider responses are simulated; no actual provider
+account is connected and no mail is sent by these tests.
 
-Coverage includes both provider OAuth redirects and mocked callbacks, S256 verifier binding, authenticated initiation, wrong-browser/provider/replay/expired-state rejection, declined consent, missing scopes, wrong-account rejection, reconnect identity, encrypted credential storage, refresh rotation/cache/concurrency, disallowed provider URLs, legacy vault migration, actual Gmail filter payloads and verification, MIME Bcc/HTML, native pagination, targeted IMAP moves and failures, partial SMTP acceptance, API authentication and error redaction.
+Coverage includes OAuth state/PKCE/replay and wrong-browser rejection; token
+rotation/cache; Gmail filters and read-back checks; MIME/Bcc; native pagination;
+targeted IMAP moves; partial SMTP acceptance; API auth; secret redaction; setup-key
+generation and preservation; encrypted provider app configuration; callback origin
+configuration; server hostname validation; and loopback-only local port binding.
 
-Provider HTTP, mailbox and SMTP responses are simulated. No live provider consent, delivery, spam training, Safe Senders change, calendar action or cross-provider migration was exercised. Gmail/Graph Bcc is tested at the request/MIME boundary; privacy of received copies must also be confirmed in live integration testing.
+CI is configured for Python 3.12/3.13, Windows PowerShell parsing/read-only preflight
+with a mocked Docker CLI, and Linux Docker build/start/readiness/authentication.
+It also validates the Caddy configuration without obtaining a certificate. Consult
+the actual GitHub Actions result for this commit before claiming those jobs passed.
 
-The backend is not deployed, the Docker image has not been built/tested here, and the installed ChatGPT plugin has not been connected. HTTP smoke checks, where reported separately, only demonstrate local server responses.
+Not verified on the user's PC: Docker Desktop installation, Windows Docker startup,
+provider app registration, real OAuth consent, mail delivery, Bcc at destination,
+phishing/spam reports, Safe Senders, calendars, migration or ChatGPT MCP connectivity.
+Public DNS and TLS certificate issuance need an authorized actual server. Automated
+unit tests and a healthy container are not evidence of those separate outcomes.

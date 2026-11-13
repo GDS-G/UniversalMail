@@ -21,3 +21,45 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m compileall -q universalmail tests
       - run: python -m pytest -q
+  windows-launcher:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: PowerShell parsing and read-only preflight
+        shell: powershell
+        run: .\tests\powershell-smoke.ps1
+  docker-local:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Launch local Docker backend
+        run: bash ./start-universalmail.sh --no-browser
+      - name: Check setup and authentication
+        run: |
+          python - <<'PY'
+          import json, urllib.request, urllib.error
+          from scripts.configure import read_env
+          from pathlib import Path
+          assert json.load(urllib.request.urlopen('http://localhost:8000/health'))['version'] == '0.5.0'
+          assert 'Connect Gmail' in urllib.request.urlopen('http://localhost:8000/setup').read().decode()
+          try:
+              urllib.request.urlopen('http://localhost:8000/setup/status')
+          except urllib.error.HTTPError as e:
+              assert e.code == 401
+          else:
+              raise AssertionError('Unauthorized setup access')
+          key = read_env(Path('.env'))['UNIVERSALMAIL_API_KEY']
+          request = urllib.request.Request('http://localhost:8000/setup/status', headers={'X-API-Key': key})
+          result = json.load(urllib.request.urlopen(request))
+          assert result['mode'] == 'local' and not result['mcp_connected']
+          print('Container, setup page and authenticated readiness API passed.')
+          PY
+      - name: Validate server proxy config (no certificate issued)
+        run: docker run --rm -e UNIVERSALMAIL_TLS_DOMAIN=mail.example.com -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Stop ephemeral CI containers
+        if: always()
+        run: docker compose --env-file .env -p universalmail -f compose.yaml down -v

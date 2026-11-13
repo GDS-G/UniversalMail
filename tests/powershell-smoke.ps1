@@ -5,9 +5,9 @@ foreach ($name in @('Start-UniversalMail.ps1', 'Stop-UniversalMail.ps1')) {
     [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root $name), [ref]$tokens, [ref]$errors) | Out-Null
     if ($errors.Count) { throw ($errors | Out-String) }
 }
-$script:calls = @()
+$global:UniversalMailSmokeCalls = @()
 function global:docker {
-    $script:calls += ,@($args)
+    $global:UniversalMailSmokeCalls += ,@($args)
     $global:LASTEXITCODE = 0
     if ($args[0] -eq 'context') { 'npipe:////./pipe/dockerDesktopLinuxEngine'; return }
     if ($args[0] -eq 'info') { 'linux'; return }
@@ -16,7 +16,10 @@ function global:docker {
 }
 try {
     & (Join-Path $root 'Start-UniversalMail.ps1') -CheckOnly
-    if ($script:calls.Count -ne 3) { throw 'Preflight did not check context, engine and Compose exactly once.' }
+    if ($global:UniversalMailSmokeCalls.Count -ne 3) { throw 'Preflight did not check context, engine and Compose exactly once.' }
     if (Test-Path (Join-Path $root '.env')) { throw 'CheckOnly created configuration.' }
     Write-Host 'PowerShell parsing and read-only preflight passed.'
-} finally { Remove-Item Function:\docker }
+} finally {
+    Remove-Item Function:\docker
+    Remove-Variable UniversalMailSmokeCalls -Scope Global -ErrorAction SilentlyContinue
+}
